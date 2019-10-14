@@ -9,7 +9,15 @@ The output file will contain the full JSON object for each tweet, one JSON objec
 
 ## Setup
 
-`pip install tweepy`
+### Install tweepy
+Run `pip install tweepy`
+
+### Get your API keys
+Learn about the Twitter API, including how to apply for your own keys, [here](https://developer.twitter.com/).
+
+Put them in a file of your choosing, but the format should match the `example_keys.txt` file included in this repo.
+
+_Note: Don't push the file containing your keys to a public repository! These should be kept private._
 
 ## Usage
 
