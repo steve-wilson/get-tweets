@@ -10,7 +10,35 @@ import tweepy
 # save to a new file, created at outfile_path
 # keep keys in file that only you have read access to
 
-def get_all_tweets_by_id(tweet_id_path, outfile_path, auth_path, sep='\t', tweet_col=0, verbose=False):
+# get a set of (at most 100) tweets
+def get_batch_of_tweets(api, id_list, outfile, i, total, quiet):
+
+    retry = True
+    while retry:
+        # try to get current set of tweets
+        try:
+            # make sure to ask for the full 280 characters
+            tweets = api.statuses_lookup(id_list, tweet_mode="extended")
+            total += len(tweets)
+            if not quiet:
+                print("Requested",i+1,"tweets so far, got",total)
+            # write each json object to the output file
+            for tweet in tweets:
+                json.dump(tweet._json, outfile)
+                outfile.write('\n')
+        # wait 15 min if rate limit is hit
+        except tweepy.RateLimitError:
+            sys.stderr.write("rate limit hit, sleeping 15 min...\n")
+            sys.stdout.flush()
+            time.sleep(900)
+        # if there were no exceptions during the try block
+        # stop trying to get these 100 tweets and clear the list
+        else:
+            retry = False
+
+    return total
+
+def get_all_tweets_by_id(tweet_id_path, outfile_path, auth_path, sep='\t', tweet_col=0, quiet=False):
 
     # read keys file
     keys = {}
@@ -24,41 +52,29 @@ def get_all_tweets_by_id(tweet_id_path, outfile_path, auth_path, sep='\t', tweet
     auth.set_access_token(keys["OAUTH_TOKEN"], keys["OAUTH_TOKEN_SECRET"])
     api = tweepy.API(auth)
 
-    # iterate through list of tweet ids, write to outfile
     with open(outfile_path,'w') as outfile, open(tweet_id_path) as tweet_id_file:
-        for line in tweet_id_file:
+
+        # keep track of sets of 100 ids to get
+        id_list = []
+        total = 0
+        i = 0
+
+        # iterate through list of tweet ids, write to outfile
+        for i, line in enumerate(tweet_id_file):
+
             tweet_id = line.strip().split(sep)[tweet_col]
+            id_list.append(tweet_id)
 
-            try:
-                tweet = api.get_status(tweet_id, tweet_mode="extended")
-                if verbose:
-                    print(tweet.full_text)
-                json.dump(tweet._json, outfile)
-                outfile.write('\n')
+            # wait until we get 100
+            if len(id_list) == 100:
+                total = get_batch_of_tweets(api, id_list, outfile, i, total, quiet)
+                id_list = []
 
-            except tweepy.RateLimitError:
-                sys.stderr.write("rate limit hit, sleeping 15 min...\n")
-                sys.stdout.flush()
-                time.sleep(900)
-                try:
-                    tweet = api.get_status(tweet_id, tweet_mode="extended")
-                    if verbose:
-                        print(tweet.full_text)
-                    json.dump(tweet._json, outfile)
-                    outfile.write('\n')
-                except tweepy.TweepError as err:
-                    sys.stderr.write("Error getting tweet: {0}\n".format(err))
-                except KeyboardInterrupt:
-                    raise KeyboardInterrupt
-                except:
-                    sys.stderr.write("Unexpected error: " + str(sys.exc_info()[0]) + '\n')
-
-            except tweepy.TweepError as err:
-                sys.stderr.write("Error getting tweet: {0}\n".format(err))
-            except KeyboardInterrupt:
-                raise KeyboardInterrupt
-            except:
-                sys.stderr.write("Unexpected error: "  + str(sys.exc_info()[0]) + '\n')
+        # make sure to also get the last set of < 100 tweets, if needed
+        if id_list:
+            total = get_batch_of_tweets(api, id_list, outfile, i, total, quiet)
+        print("Final: Requested",i+1,"tweets, got",total)
+        print("Done.")
 
 if __name__ == "__main__":
 
@@ -69,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("keys_file",         help="Path to keys file. (see README or example_keys.txt)")
     parser.add_argument("--sep",'-s',        help="Column separator in tweet_id_file. (default:tab)", default="\t")
     parser.add_argument("--col",'-c',        help="0-based index of column of tweet_id_file where Tweet Id can be found. (default:0)", default=0, type=int)
-    parser.add_argument("--verbose",'-v', action="store_true", help="turn verbose mode on (prints tweet text to stdout while tweets are being collected")
+    parser.add_argument('--quiet','-q', action="store_true", help="Don't print progress messages while collecting tweets.")
 
     args = parser.parse_args()
-    get_all_tweets_by_id(args.tweet_id_file, args.output_json_file, args.keys_file, args.sep, args.col, args.verbose)
+    get_all_tweets_by_id(args.tweet_id_file, args.output_json_file, args.keys_file, args.sep, args.col, args.quiet)
