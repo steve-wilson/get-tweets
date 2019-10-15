@@ -52,3 +52,7 @@ and a file called `tweet_ids.txt` will be created containing the json objects fo
 _I have `N` tweet IDs, why am I only getting `<N` tweets?_
 
 You will only be able to retrieve tweets that are still publicly available on Twitter. This means no deleted tweets, tweets by users that have been banned, or tweets from users who have switched their accounts to private. These things are all fairly common, so it is likely that you won't be able to get every tweet, and it becomes more likely over time.
+
+_Will the csv mode work if I'm using quoted fields that contain commas?_
+
+No, this is not supported currently. It will only end up working if the tweet ID column comes _before_ the columns that potentially contain quoted commas. The easiest solution for you might be to copy the single column of Tweet IDs into a new file and use that as your input. You can also do smarter csv handling using the [csv](https://docs.python.org/3/library/csv.html) Python library.
